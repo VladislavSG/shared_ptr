@@ -17,23 +17,22 @@ struct control_block {
 
 // Блок, хранящий ссылку на контролируемый объект
 template<typename T, typename Deleter>
-struct control_block_ptr : control_block {
-    control_block_ptr(T *ptr, Deleter del) : control_object(ptr), deleter(del) {}
+struct control_block_ptr : control_block, Deleter {
+    control_block_ptr(T *ptr, Deleter del) : control_object(ptr), Deleter(std::move(del)) {}
 
     void delete_object() override {
-        deleter(control_object);
+        static_cast<Deleter&>(*this)(control_object);
     }
 
 private:
     T *control_object;
-    Deleter deleter;
 };
 
 // Блок, создаваемый make_shared
 template<typename T>
 struct control_block_t : control_block {
     template<typename ...Args>
-    explicit control_block_t(Args &&...args) {
+    explicit control_block_t(Args ...args) {
         new(get_ptr()) T(std::forward<Args>(args)...);
     }
 
@@ -50,7 +49,7 @@ private:
 
     template<typename U, typename... Args>
     friend
-    shared_ptr<U> make_shared(Args &&... args);
+    shared_ptr<U> make_shared(Args ...args);
 };
 
 
@@ -210,6 +209,9 @@ struct shared_ptr {
     }
 
 private:
+    control_block *shared_block;
+    T *focused_object;
+
     void add_strong() {
         if (shared_block != nullptr) {
             shared_block->strong_counter++;
@@ -237,16 +239,12 @@ private:
 
     template<typename U, typename... Args>
     friend
-    shared_ptr<U> make_shared(Args &&... args);
-
-
-    control_block *shared_block;
-    T *focused_object;
+    shared_ptr<U> make_shared(Args ...args);
 };
 
 // Секция non-member functions
 template<typename T, typename... Args>
-shared_ptr<T> make_shared(Args &&... args) {
+shared_ptr<T> make_shared(Args ...args) {
     shared_ptr<T> ret;
     auto temp = new control_block_t<T>(std::forward<Args>(args)...);
     ret.shared_block = temp;
