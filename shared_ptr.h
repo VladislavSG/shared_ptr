@@ -12,6 +12,7 @@ struct control_block {
     size_t weak_counter = 0;
 
     virtual void delete_object() = 0;
+
     virtual ~control_block() = default;
 };
 
@@ -21,7 +22,7 @@ struct control_block_ptr : control_block, Deleter {
     control_block_ptr(T *ptr, Deleter del) : control_object(ptr), Deleter(std::move(del)) {}
 
     void delete_object() override {
-        static_cast<Deleter&>(*this)(control_object);
+        static_cast<Deleter &>(*this)(control_object);
     }
 
 private:
@@ -32,7 +33,7 @@ private:
 template<typename T>
 struct control_block_t : control_block {
     template<typename ...Args>
-    explicit control_block_t(Args ...args) {
+    explicit control_block_t(Args &&...args) {
         new(get_ptr()) T(std::forward<Args>(args)...);
     }
 
@@ -49,9 +50,8 @@ private:
 
     template<typename U, typename... Args>
     friend
-    shared_ptr<U> make_shared(Args ...args);
+    shared_ptr<U> make_shared(Args &&...args);
 };
-
 
 
 template<typename T>
@@ -87,11 +87,10 @@ struct shared_ptr {
     }
 
     template<typename Y>
-    shared_ptr(shared_ptr<Y> &&other, T *ptr) noexcept : shared_ptr() {
-        shared_block = other.shared_block;
+    shared_ptr(shared_ptr<Y> &&other, T *ptr) noexcept
+            : shared_ptr() {
+        shared_ptr(std::move(other)).swap(*this);
         focused_object = ptr;
-        other.shared_block = nullptr;
-        other.focused_object = nullptr;
     }
 
     // Конструктор копирования
@@ -133,7 +132,7 @@ struct shared_ptr {
 
     // Секция operator=
     shared_ptr &operator=(const shared_ptr &other) noexcept {
-        if (*this != other) {
+        if (this != &other) {
             release_strong();
             shared_block = other.shared_block;
             focused_object = other.focused_object;
@@ -239,12 +238,12 @@ private:
 
     template<typename U, typename... Args>
     friend
-    shared_ptr<U> make_shared(Args ...args);
+    shared_ptr<U> make_shared(Args &&...args);
 };
 
 // Секция non-member functions
 template<typename T, typename... Args>
-shared_ptr<T> make_shared(Args ...args) {
+shared_ptr<T> make_shared(Args &&...args) {
     shared_ptr<T> ret;
     auto temp = new control_block_t<T>(std::forward<Args>(args)...);
     ret.shared_block = temp;
@@ -290,6 +289,7 @@ struct weak_ptr {
     constexpr weak_ptr() noexcept
             : shared_block(nullptr),
               focused_object(nullptr) {}
+
     // Конструктор копирования
     weak_ptr(const weak_ptr &other) noexcept
             : shared_block(other.shared_block),
@@ -310,6 +310,7 @@ struct weak_ptr {
               focused_object(other.focused_object) {
         add_weak();
     }
+
     // Move конструктор
     weak_ptr(weak_ptr &&other) noexcept
             : weak_ptr() {
@@ -354,6 +355,7 @@ struct weak_ptr {
         add_weak();
         return *this;
     }
+
     // Move operator=
     weak_ptr &operator=(weak_ptr &&other) noexcept {
         weak_ptr<T>(std::move(other)).swap(*this);
@@ -403,8 +405,8 @@ private:
 
     void release_weak() {
         if (shared_block != nullptr &&
-                --shared_block->weak_counter == 0 &&
-                shared_block->strong_counter == 0) {
+            --shared_block->weak_counter == 0 &&
+            shared_block->strong_counter == 0) {
             delete shared_block;
         }
     }

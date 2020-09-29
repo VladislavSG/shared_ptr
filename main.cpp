@@ -47,7 +47,7 @@ TEST(shared_ptr_testing, default_ctor)
 TEST(shared_ptr_testing, ptr_ctor)
 {
     test_object::no_new_instances_guard g;
-    test_object* p = new test_object(42);    
+    test_object* p = new test_object(42);
     shared_ptr<test_object> q(p);
     EXPECT_TRUE(static_cast<bool>(q));
     EXPECT_EQ(p, q.get());
