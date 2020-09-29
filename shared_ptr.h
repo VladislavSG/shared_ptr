@@ -67,8 +67,14 @@ struct shared_ptr {
 
     template<typename Y, typename Deleter>
     shared_ptr(Y *ptr, Deleter del)
-            : shared_block(new control_block_ptr<Y, Deleter>(ptr, del)),
-              focused_object(ptr) {}
+            : focused_object(ptr) {
+        try {
+            shared_block = new control_block_ptr<Y, Deleter>(ptr, del);
+        } catch (...) {
+            del(ptr);
+            throw;
+        }
+    }
 
     template<typename Y>
     explicit shared_ptr(Y *ptr)
